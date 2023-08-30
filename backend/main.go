@@ -15,8 +15,9 @@ import (
 
 func getDBConnection() *pgx.Conn {
 	db, err := pgx.Connect(context.Background(),
-		fmt.Sprintf("host=%s user=%s password=%s dbname=%s sslmode=disable",
+		fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 			os.Getenv("DB_HOST"),
+			os.Getenv("DB_PORT"),
 			os.Getenv("DB_USER"),
 			os.Getenv("DB_PASSWORD"),
 			os.Getenv("DB_NAME"),
@@ -51,6 +52,9 @@ func main() {
 			log.Printf("recovered from: '%v'", e)
 		},
 	}))
+
+	app.Post("/register", registerNewGate)
+	app.Get("/dial", dialGate)
 
 	log.Printf("Starting server listening on %s:%s.", client, port)
 	log.Fatal(app.Listen(fmt.Sprintf("%s:%s", client, port)))
