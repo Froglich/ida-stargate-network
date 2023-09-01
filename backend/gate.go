@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-var staticChevrons [21]uint = [21]uint{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}
+var staticChevrons [24]uint = [24]uint{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}
 
 func assignGateAddress(db *pgx.Conn, gateUUID string, tries uint) {
 	if tries > 10 {
@@ -19,7 +19,7 @@ func assignGateAddress(db *pgx.Conn, gateUUID string, tries uint) {
 
 	var gateAddress [7]uint
 
-	chevrons := make([]uint, 21)
+	chevrons := make([]uint, 24)
 	copy(chevrons, staticChevrons[:])
 
 	for i := 0; i < 7; i++ {
