@@ -55,6 +55,8 @@ func main() {
 
 	app.Post("/register", registerNewGate)
 	app.Get("/dial", dialGate)
+	app.Post("/update", updateGate)
+	app.Put("/state", updateGateState)
 
 	log.Printf("Starting server listening on %s:%s.", client, port)
 	log.Fatal(app.Listen(fmt.Sprintf("%s:%s", client, port)))
