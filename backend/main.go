@@ -53,8 +53,9 @@ func main() {
 		},
 	}))
 
-	app.Post("/register", registerNewGate)
+	app.Put("/register", registerNewGate)
 	app.Get("/dial", dialGate)
+	app.Put("/dial-address", dialByAddress)
 	app.Post("/update", updateGate)
 	app.Put("/state", updateGateState)
 

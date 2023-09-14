@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -66,6 +67,10 @@ func registerNewGate(c *fiber.Ctx) error {
 	return nil
 }
 
+func gateDialSuccessReply(region string, address string, chev1 uint, chev2 uint, chev3 uint, chev4 uint, chev5 uint, chev6 uint, chev7 uint) string {
+	return fmt.Sprintf("%s|%s|%d|%d|%d|%d|%d|%d|%d", region, address, chev1, chev2, chev3, chev4, chev5, chev6, chev7)
+}
+
 func dialGate(c *fiber.Ctx) error {
 	db := getDBConnection()
 	defer db.Close(context.Background())
@@ -89,7 +94,29 @@ func dialGate(c *fiber.Ctx) error {
 		return fiber.ErrNotFound
 	}
 
-	return c.SendString(fmt.Sprintf("%s|%s|%d|%d|%d|%d|%d|%d|%d", region, address, chev1, chev2, chev3, chev4, chev5, chev6, chev7))
+	return c.SendString(gateDialSuccessReply(region, address, chev1, chev2, chev3, chev4, chev5, chev6, chev7))
+}
+
+func dialByAddress(c *fiber.Ctx) error {
+	db := getDBConnection()
+	defer db.Close(context.Background())
+
+	dialingGateUUID := c.GetReqHeaders()["X-Secondlife-Object-Key"]
+
+	symbols := make([]uint, 7)
+	err := json.Unmarshal(c.Body(), &symbols)
+	if err != nil {
+		return fiber.ErrBadRequest
+	}
+
+	var address string
+	var region string
+	err = db.QueryRow(context.Background(), "SELECT g.gate_url, g.region FROM gates g LEFT JOIN gate_coordinates c ON c.gate_uuid = g.uuid WHERE g.uuid <> $1 AND c.one = $2 AND c.two = $3 AND c.three = $4 AND c.four = $5 AND c.five = $6 AND c.six = $7 AND c.seven = $8", dialingGateUUID, symbols[0], symbols[1], symbols[2], symbols[3], symbols[4], symbols[5], symbols[6]).Scan(&address, &region)
+	if err != nil {
+		return fiber.ErrNotFound
+	}
+
+	return c.SendString(gateDialSuccessReply(region, address, symbols[0], symbols[1], symbols[2], symbols[3], symbols[4], symbols[5], symbols[6]))
 }
 
 func updateGateState(c *fiber.Ctx) error {
