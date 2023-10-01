@@ -6,13 +6,26 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5"
 )
 
 var staticChevrons [24]uint = [24]uint{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24}
+
+func cleanUpRegionName(region string) string {
+	pRegion := regexp.MustCompile(`(.+) \(\d+, \d+\)`)
+	matches := pRegion.FindAllStringSubmatch(region, -1)
+
+	if len(matches) == 1 && len(matches[0]) == 2 {
+		return matches[0][1]
+	}
+
+	return "Unknown region"
+}
 
 func assignGateAddress(db *pgx.Conn, gateUUID string, tries uint) {
 	if tries > 10 {
@@ -54,7 +67,7 @@ func registerNewGate(c *fiber.Ctx) error {
 	gateName := headers["X-Secondlife-Object-Name"]
 	gateOwnerName := headers["X-Secondlife-Owner-Name"]
 	gateOwnerUUID := headers["X-Secondlife-Owner-Key"]
-	gateRegion := headers["X-Secondlife-Region"]
+	gateRegion := cleanUpRegionName(headers["X-Secondlife-Region"])
 
 	_, err := db.Exec(context.Background(), "INSERT INTO gates (uuid, gate_url, gate_name, owner_name, owner_uuid, region) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT (uuid) DO UPDATE SET gate_url = EXCLUDED.gate_url, owner_name = EXCLUDED.owner_name, owner_uuid = EXCLUDED.owner_uuid, region = EXCLUDED.region, last_seen = NOW()", gateUUID, gateURL, gateName, gateOwnerName, gateOwnerUUID, gateRegion)
 	if err != nil {
@@ -75,7 +88,7 @@ func dialGate(c *fiber.Ctx) error {
 	db := getDBConnection()
 	defer db.Close(context.Background())
 
-	query := fmt.Sprintf("%%%s%%", string(c.FormValue("q")))
+	query := fmt.Sprintf("%%%s%%", strings.ToLower(string(c.FormValue("q"))))
 
 	dialingGateUUID := c.GetReqHeaders()["X-Secondlife-Object-Key"]
 
@@ -88,7 +101,15 @@ func dialGate(c *fiber.Ctx) error {
 	var chev5 uint
 	var chev6 uint
 	var chev7 uint
-	err := db.QueryRow(context.Background(), "SELECT g.gate_url, g.region, c.one, c.two, c.three, c.four, c.five, c.six, c.seven FROM gates g LEFT JOIN gate_coordinates c ON c.gate_uuid = g.uuid WHERE uuid <> $1 AND (LOWER(region) LIKE $2 OR LOWER(gate_name) LIKE $2) AND last_seen+'2 hours'::interval+'60 seconds'::interval >= NOW() ORDER BY last_seen DESC LIMIT 1", dialingGateUUID, query).Scan(&address, &region, &chev1, &chev2, &chev3, &chev4, &chev5, &chev6, &chev7)
+	var row pgx.Row
+
+	if query != "%random%" {
+		row = db.QueryRow(context.Background(), "SELECT g.gate_url, g.region, c.one, c.two, c.three, c.four, c.five, c.six, c.seven FROM gates g LEFT JOIN gate_coordinates c ON c.gate_uuid = g.uuid WHERE uuid <> $1 AND (LOWER(region) LIKE $2 OR LOWER(gate_name) LIKE $2) AND (last_seen+'2 hours'::interval >= NOW() AT TIME ZONE('UTC')) ORDER BY last_seen DESC LIMIT 1", dialingGateUUID, query)
+	} else {
+		row = db.QueryRow(context.Background(), "SELECT g.gate_url, g.region, c.one, c.two, c.three, c.four, c.five, c.six, c.seven	FROM GATES g LEFT JOIN gate_coordinates c ON c.gate_uuid = g.uuid WHERE uuid <> $1 AND (last_seen+'2 hours'::interval >= NOW() AT TIME ZONE('UTC')) ORDER BY RANDOM() LIMIT 1", dialingGateUUID)
+	}
+
+	err := row.Scan(&address, &region, &chev1, &chev2, &chev3, &chev4, &chev5, &chev6, &chev7)
 	if err != nil {
 		log.Printf("WARNING - found no gate matching query: '%v'", err)
 		return fiber.ErrNotFound
@@ -145,7 +166,7 @@ func updateGate(c *fiber.Ctx) error {
 	gateName := headers["X-Secondlife-Object-Name"]
 	gateOwnerName := headers["X-Secondlife-Owner-Name"]
 	gateOwnerUUID := headers["X-Secondlife-Owner-Key"]
-	gateRegion := headers["X-Secondlife-Region"]
+	gateRegion := cleanUpRegionName(headers["X-Secondlife-Region"])
 
 	_, err := db.Exec(context.Background(), "UPDATE gates SET owner_name = $1, owner_uuid = $2, region = $3, gate_name = $4, last_seen = NOW() WHERE uuid = $5", gateOwnerName, gateOwnerUUID, gateRegion, gateName, gateUUID)
 

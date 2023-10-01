@@ -54,6 +54,7 @@ func main() {
 	}))
 
 	app.Put("/register", registerNewGate)
+	app.Post("/register", registerNewGate) //For compatibility with the sub 0.6-gates
 	app.Get("/dial", dialGate)
 	app.Put("/dial-address", dialByAddress)
 	app.Post("/update", updateGate)
