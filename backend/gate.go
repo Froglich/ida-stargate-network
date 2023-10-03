@@ -176,3 +176,34 @@ func updateGate(c *fiber.Ctx) error {
 
 	return nil
 }
+
+func deleteStargate(c *fiber.Ctx) error {
+	db := getDBConnection()
+	defer db.Close(context.Background())
+
+	gateUUID := c.GetReqHeaders()["X-Secondlife-Object-Key"]
+
+	var gateURL string
+	err := db.QueryRow(context.Background(), "SELECT gate_url FROM gates WHERE uuid = $1", gateUUID).Scan(&gateURL)
+	if err != nil {
+		log.Printf("ERROR - unable to find gate url: '%v'", err)
+		return fiber.ErrNotFound
+	}
+
+	agent := fiber.Delete(gateURL)
+	status, _, errs := agent.Bytes()
+
+	if len(errs) > 0 {
+		log.Printf("ERROR - unable to connec to stargate for deletion: %v", errs)
+		return fiber.ErrInternalServerError
+	} else if status != 200 {
+		return fiber.ErrMethodNotAllowed
+	}
+
+	_, err = db.Exec(context.Background(), "DELETE FROM gates WHERE uuid = $1", gateUUID)
+	if err != nil {
+		log.Printf("ERROR - unable to delete stargate from database: '%v'", err)
+	}
+
+	return nil
+}

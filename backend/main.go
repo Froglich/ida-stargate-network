@@ -59,6 +59,7 @@ func main() {
 	app.Put("/dial-address", dialByAddress)
 	app.Post("/update", updateGate)
 	app.Put("/state", updateGateState)
+	app.Delete("/delete", deleteStargate)
 
 	log.Printf("Starting server listening on %s:%s.", client, port)
 	log.Fatal(app.Listen(fmt.Sprintf("%s:%s", client, port)))
