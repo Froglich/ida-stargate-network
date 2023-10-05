@@ -1,6 +1,6 @@
 module ida-stargate-network-backend
 
-go 1.21.0
+go 1.21
 
 require (
 	github.com/gofiber/fiber/v2 v2.49.0

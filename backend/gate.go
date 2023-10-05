@@ -69,7 +69,17 @@ func registerNewGate(c *fiber.Ctx) error {
 	gateOwnerUUID := headers["X-Secondlife-Owner-Key"]
 	gateRegion := cleanUpRegionName(headers["X-Secondlife-Region"])
 
-	_, err := db.Exec(context.Background(), "INSERT INTO gates (uuid, gate_url, gate_name, owner_name, owner_uuid, region) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT (uuid) DO UPDATE SET gate_url = EXCLUDED.gate_url, owner_name = EXCLUDED.owner_name, owner_uuid = EXCLUDED.owner_uuid, region = EXCLUDED.region, last_seen = NOW()", gateUUID, gateURL, gateName, gateOwnerName, gateOwnerUUID, gateRegion)
+	banned, err := checkIfUserIsBanned(db, gateOwnerUUID)
+	if err != nil {
+		log.Printf("ERROR - unable to check if users is banned during registration: '%v'", err)
+		return fiber.ErrInternalServerError
+	}
+
+	if banned {
+		return fiber.ErrUnauthorized
+	}
+
+	_, err = db.Exec(context.Background(), "INSERT INTO gates (uuid, gate_url, gate_name, owner_name, owner_uuid, region) VALUES($1, $2, $3, $4, $5, $6) ON CONFLICT (uuid) DO UPDATE SET gate_url = EXCLUDED.gate_url, owner_name = EXCLUDED.owner_name, owner_uuid = EXCLUDED.owner_uuid, region = EXCLUDED.region, last_seen = NOW()", gateUUID, gateURL, gateName, gateOwnerName, gateOwnerUUID, gateRegion)
 	if err != nil {
 		log.Printf("ERROR - unable to register gate: %v", err)
 		return fiber.ErrInternalServerError
@@ -90,7 +100,21 @@ func dialGate(c *fiber.Ctx) error {
 
 	query := fmt.Sprintf("%%%s%%", strings.ToLower(string(c.FormValue("q"))))
 
-	dialingGateUUID := c.GetReqHeaders()["X-Secondlife-Object-Key"]
+	headers := c.GetReqHeaders()
+
+	dialingGateUUID := headers["X-Secondlife-Object-Key"]
+
+	//Need to check here too, because the gate doesnt technically need to be registered to dial
+	gateOwnerUUID := headers["X-Secondlife-Owner-Key"]
+	banned, err := checkIfUserIsBanned(db, gateOwnerUUID)
+	if err != nil {
+		log.Printf("ERROR - unable to check if user is banned during dial: '%v'", err)
+		return fiber.ErrInternalServerError
+	}
+
+	if banned {
+		return fiber.ErrUnauthorized
+	}
 
 	var address string
 	var region string
@@ -109,7 +133,7 @@ func dialGate(c *fiber.Ctx) error {
 		row = db.QueryRow(context.Background(), "SELECT g.gate_url, g.region, c.one, c.two, c.three, c.four, c.five, c.six, c.seven	FROM GATES g LEFT JOIN gate_coordinates c ON c.gate_uuid = g.uuid WHERE uuid <> $1 AND (last_seen+'2 hours'::interval >= NOW() AT TIME ZONE('UTC')) ORDER BY RANDOM() LIMIT 1", dialingGateUUID)
 	}
 
-	err := row.Scan(&address, &region, &chev1, &chev2, &chev3, &chev4, &chev5, &chev6, &chev7)
+	err = row.Scan(&address, &region, &chev1, &chev2, &chev3, &chev4, &chev5, &chev6, &chev7)
 	if err != nil {
 		log.Printf("WARNING - found no gate matching query: '%v'", err)
 		return fiber.ErrNotFound
@@ -122,10 +146,23 @@ func dialByAddress(c *fiber.Ctx) error {
 	db := getDBConnection()
 	defer db.Close(context.Background())
 
-	dialingGateUUID := c.GetReqHeaders()["X-Secondlife-Object-Key"]
+	headers := c.GetReqHeaders()
+
+	dialingGateUUID := headers["X-Secondlife-Object-Key"]
+	//Need to check here too, because the gate doesnt technically need to be registered to dial
+	gateOwnerUUID := headers["X-Secondlife-Owner-Key"]
+	banned, err := checkIfUserIsBanned(db, gateOwnerUUID)
+	if err != nil {
+		log.Printf("ERROR - unable to check if user is banned during symbol dial: '%v'", err)
+		return fiber.ErrInternalServerError
+	}
+
+	if banned {
+		return fiber.ErrUnauthorized
+	}
 
 	symbols := make([]uint, 7)
-	err := json.Unmarshal(c.Body(), &symbols)
+	err = json.Unmarshal(c.Body(), &symbols)
 	if err != nil {
 		return fiber.ErrBadRequest
 	}

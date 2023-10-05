@@ -1,7 +1,7 @@
 CREATE TABLE gates (
     uuid       TEXT NOT NULL PRIMARY KEY,
     gate_url   TEXT NOT NULL,
-    gate_name  TEXT NOT NULL DEFAULT 'Ida Stargate',
+    gate_name  TEXT NOT NULL DEFAULT 'ISN Stargate',
     owner_name TEXT NOT NULL,
     owner_uuid TEXT NOT NULL,
     region     TEXT NOT NULL,
@@ -26,4 +26,10 @@ CREATE TABLE gate_coordinates(
     six       INT NOT NULL,
     seven     INT NOT NULL,
     UNIQUE(one, two, three, four, five, six, seven)
+);
+
+CREATE TABLE banned_users(
+	user_uuid TEXT NOT NULL PRIMARY KEY,
+	reason text,
+	ban_date TIMESTAMP NOT NULL DEFAULT NOW()
 );
